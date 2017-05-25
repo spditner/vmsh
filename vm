@@ -1,0 +1,61 @@
+#!/bin/bash
+
+CMD=$1
+ID=$(find . -name id -exec cat {} \;)
+
+function do_help {
+  cat << EOF
+
+vm usage:
+
+  list - List snapshot
+  snap - Take a snapshot
+  ssh - SSH into the virtual machine
+  restore - Restore the named snapshot
+
+EOF
+}
+
+case ${CMD} in
+  ls|list)
+    vboxmanage snapshot ${ID} list    
+    ;;
+  snap|shapshot)
+    echo -n "Snapshot name: "
+    read prefix
+    NAME="${prefix}-$(date +%Y%m%d-%H%M%S)"
+    echo $NAME
+    vboxmanage snapshot ${ID} take "${NAME}" --live
+    echo "${NAME}" > current.dat
+    ;;
+  ssh)
+    if [ ! -f ./.vagrant/ssh_config ]; then
+      vagrant ssh-config > ./.vagrant/ssh_config
+    fi
+    ssh -F ./.vagrant/ssh_config default
+    ;;
+  restore|revert)
+    if [ -z $2 ]; then
+      read TARGET
+    else
+      TARGET=$2
+    fi
+    echo "Restoring $TARGET"
+    echo "Powering off ${ID}"
+    vboxmanage controlvm ${ID} poweroff
+    vboxmanage snapshot ${ID} restore "${TARGET}"
+    vboxmanage startvm ${ID} --type headless
+    ;;
+  up|start)
+    vagrant up
+    ;;
+  halt|stop)
+    vagrant halt
+    ;;
+  destroy)
+    vagrant destroy
+    ;;
+  *)
+    do_help
+    ;;
+esac
