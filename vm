@@ -1,7 +1,7 @@
 #!/bin/bash
 
 CMD=$1
-ID=$(find . -name id -exec cat {} \;)
+ID=$(find .vagrant -name id -exec cat {} \;)
 
 function do_help {
   cat << EOF
@@ -17,22 +17,33 @@ EOF
 }
 
 case ${CMD} in
+  running)
+    vboxmanage list runningvms
+    ;;
   ls|list)
     vboxmanage snapshot ${ID} list    
     ;;
   snap|shapshot)
     echo -n "Snapshot name: "
-    read prefix
-    NAME="${prefix}-$(date +%Y%m%d-%H%M%S)"
+    if [ -z $2 ]; then
+        read prefix
+        NAME="${prefix}-$(date +%Y%m%d-%H%M%S)"
+    else
+        NAME=$2
+    fi
     echo $NAME
     vboxmanage snapshot ${ID} take "${NAME}" --live
     echo "${NAME}" > current.dat
     ;;
+  sftp)
+    IDENTITY=$(find . -name private_key)
+    PORT=$(vboxmanage showvminfo ${ID} --machinereadable | grep ',22"' |cut -d',' -f4)
+    sftp -i ${IDENTITY} -o UserKnownHostsFile=False -o StrictHostKeyChecking=no -o Port=${PORT} ${USERNAME-vagrant}@localhost
+    ;;
   ssh)
-    if [ ! -f ./.vagrant/ssh_config ]; then
-      vagrant ssh-config > ./.vagrant/ssh_config
-    fi
-    ssh -F ./.vagrant/ssh_config default
+    IDENTITY=$(find . -name private_key)
+    PORT=$(vboxmanage showvminfo ${ID} --machinereadable | grep ',22"' |cut -d',' -f4)
+    ssh -i ${IDENTITY} -o UserKnownHostsFile=False -o StrictHostKeyChecking=no -l ${USERNAME-vagrant} -p ${PORT} localhost
     ;;
   restore|revert)
     if [ -z $2 ]; then
